@@ -73,50 +73,28 @@ uint128 gen_piece(int x, int y, int z, int dir, int rot, int dis) {
   return res;
 }
 
-bool find_solution(const std::span<uint128> pieces, std::span<short> output) {
-  int o = 0;
-  uint128 cube = 0;
-  uint128 bit = find_first_zero_bit(cube);
-
-  for (int i = 0; i < pieces.size(); ++i) {
-    for (; i < pieces.size(); ++i) {
-      if (!(pieces[i] & bit)) {
-        // skip:
-        //continue
-
-        // more big brain skip:
-        if (pieces[i] & (bit - 1)) {
-          continue;
-        }
-        break;
+void output_debug(const std::span<uint128> pieces, std::span<short> output) {
+  // output
+  for (auto r : output) {
+    auto piece = pieces[r];
+    std::cout << std::setw(3) << int(r) << ":";
+    for (auto i = 0; i < 5*5*5; ++i) {
+      if (piece & (uint128(1) << i)) {
+        std::cout << "█";
+      } else {
+        std::cout << " ";
       }
-      auto& piece = pieces[i];
-      if (cube & piece) {
-        // skip
-        continue;
-      }
-
-      output[o++] = i;
-      if (o == output.size()) {
-        return true;
-      }
-
-      cube |= pieces[i];
-      bit = find_first_zero_bit(cube);
     }
-    if (o > 0) {
-      // pop 1 from stack
-      i = output[--o];
-      cube &= ~pieces[i];
-      bit = find_first_zero_bit(cube);
-    }
+    std::cout << std::endl;
   }
-  return false;
+  std::cout << std::endl;
 }
 
-void export_stl(int r, uint128 piece) {
-  std::ofstream cube("solved_cube_" + std::to_string(r) + ".stl", std::ios::out | std::ios::trunc);
-  cube << "solid piece_" << r << std::endl;
+#include <regex>
+void export_stl_part(std::string path, uint128 piece) {
+  std::ofstream cube(path, std::ios::out | std::ios::trunc);
+  auto name = std::regex_replace(path, std::regex("[/ .]"), "_");
+  cube << "solid " << name << std::endl;
   static std::array triangles{
     -1.0f,-1.0f,-1.0f, // triangle 1 : begin
     -1.0f,-1.0f, 1.0f,
@@ -185,8 +163,68 @@ void export_stl(int r, uint128 piece) {
     cube << "endloop" << std::endl;
     cube << "endfacet" << std::endl;
   }
-  cube << "endsolid piece_" << r << std::endl;
+  cube << "endsolid " << name << std::endl;
   cube.close();
+}
+
+#include <sys/types.h>
+#include <sys/stat.h>
+void export_stl(const std::span<uint128> pieces, std::span<short> output) {
+  // multiple STLs ..
+  // Blender doesn't import "solids" as seperated meshes
+  static int fid = 0;
+  std::string path = "solution/";
+  mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  path += std::to_string(++fid);
+  mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  for (auto r : output) {
+    auto piece = pieces[r];
+    export_stl_part(path + "/" + std::to_string(r) + ".stl", piece);
+  }
+}
+
+bool find_solution(const std::span<uint128> pieces, std::span<short> output) {
+  int o = 0;
+  uint128 cube = 0;
+  uint128 bit = find_first_zero_bit(cube);
+
+  for (int i = 0; i < pieces.size(); ++i) {
+    for (; i < pieces.size(); ++i) {
+      if (!(pieces[i] & bit)) {
+        // skip:
+        //continue
+
+        // more big brain skip:
+        if (pieces[i] & (bit - 1)) {
+          continue;
+        }
+        break;
+      }
+      auto& piece = pieces[i];
+      if (cube & piece) {
+        // skip
+        continue;
+      }
+
+      output[o++] = i;
+      if (o == output.size()) {
+        // return true;
+        output_debug(pieces, output);
+        export_stl(pieces, output);
+        break;
+      }
+
+      cube |= pieces[i];
+      bit = find_first_zero_bit(cube);
+    }
+    if (o > 0) {
+      // pop 1 from stack
+      i = output[--o];
+      cube &= ~pieces[i];
+      bit = find_first_zero_bit(cube);
+    }
+  }
+  return false;
 }
 
 int main() {
@@ -225,24 +263,6 @@ int main() {
   std::vector<short> res;
   res.resize(25);
   find_solution(pieces, res);
-
-  // output
-  for (auto r : res) {
-    auto piece = pieces[r];
-    std::cout << std::setw(3) << int(r) << ":";
-    for (auto i = 0; i < 5*5*5; ++i) {
-      if (piece & (uint128(1) << i)) {
-        std::cout << "█";
-      } else {
-        std::cout << " ";
-      }
-    }
-    std::cout << std::endl;
-
-    // multiple STLs ..
-    // Blender doesn't import "solids" as seperated meshes
-    export_stl(r, piece);
-  }
-  
+ 
   std::cout << "DONE" << std::endl;
 }
