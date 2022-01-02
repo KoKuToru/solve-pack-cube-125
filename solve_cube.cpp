@@ -8,6 +8,7 @@
 #include <span>
 #include <iostream>
 #include <fstream>
+#include <set>
 
 using uint128 = __uint128_t;
 
@@ -88,6 +89,94 @@ void output_debug(const std::span<uint128> pieces, std::span<short> output) {
     std::cout << std::endl;
   }
   std::cout << std::endl;
+}
+
+#include <assert.h>
+void make_ids_smallest(const std::span<uint128> pieces, std::span<short> output)  {
+  // make id's smalles by rotating / mirrowing
+  int score = 0;
+  std::vector<std::vector<short>> mem;
+
+  for (auto j = 0; j < 6; ++j) {
+    for (auto i = 0; i < 8; ++i) {
+      std::vector<short> a;
+      a.reserve(output.size());
+      for (auto k : output) {
+        auto piece = pieces[k];
+        // new piece
+        decltype(piece) new_piece = 0;
+        for (auto x = 0; x < 5; ++x)
+        for (auto y = 0; y < 5; ++y)
+        for (auto z = 0; z < 5; ++z) {
+          if (piece & (uint128(1) << (z * 5 * 5 + y * 5 + x))) {
+            auto sx = x;
+            auto sy = y;
+            auto sz = z;
+            switch (i) {
+              case 0:
+                break;
+              case 1:
+                sx = 4 - sx;
+                break;
+              case 2:
+                sy = 4 - sy;
+                break;
+              case 3:
+                sz = 4 - sz;
+                break;
+              case 4:
+                sx = 4 - sx;
+                sy = 4 - sy;
+                break;
+              case 5:
+                sx = 4 - sx;
+                sz = 4 - sz;
+                break;
+              case 6:
+                sy = 4 - sy;
+                sz = 4 - sz;
+                break;
+              case 7:
+                sx = 4 - sx;
+                sy = 4 - sy;
+                sz = 4 - sz;
+                break;
+            }
+            switch (j) {
+              case 0:
+                break;
+              case 1:
+                std::tie(sx, sy, sz) = std::tuple{ sx, sz, sy};
+                break;
+              case 2:
+                std::tie(sx, sy, sz) = std::tuple{ sy, sx, sz};
+                break;
+              case 3:
+                std::tie(sx, sy, sz) = std::tuple{ sy, sz, sx};
+                break;
+              case 4:
+                std::tie(sx, sy, sz) = std::tuple{ sz, sx, sy};
+                break;
+              case 5:
+                std::tie(sx, sy, sz) = std::tuple{ sz, sy, sx};
+                break;
+            }
+            new_piece |= uint128(1) << (sz * 5 * 5 + sy * 5 + sx);
+          }
+        }
+        auto it = std::find(pieces.begin(), pieces.end(), new_piece);
+        assert(it != pieces.end());
+        a.push_back(std::distance(pieces.begin(), it));
+      }
+      std::sort(a.begin(), a.end());
+      mem.push_back(a);
+    }
+  }
+
+  // save
+  std::sort(mem.begin(), mem.end());
+  auto a = mem.front();
+  std::copy(a.begin(), a.end(), output.begin());
 }
 
 #include <regex>
@@ -209,8 +298,16 @@ bool find_solution(const std::span<uint128> pieces, std::span<short> output) {
       output[o++] = i;
       if (o == output.size()) {
         // return true;
-        output_debug(pieces, output);
-        export_stl(pieces, output);
+        std::array<short, 25> tmp;
+        std::copy(output.begin(), output.end(), tmp.begin());
+        make_ids_smallest(pieces, tmp);
+        static std::set<std::array<short, 25>> used;
+        if (used.find(tmp) == used.end()) {
+          used.insert(tmp);
+
+          output_debug(pieces, tmp);
+          export_stl(pieces, tmp);
+        }
         break;
       }
 
